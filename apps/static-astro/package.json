@@ -1,0 +1,1 @@
+{"name":"static-astro","private":true,"scripts":{"build":"astro build"},"devDependencies":{"astro":"5.12.8"}}
