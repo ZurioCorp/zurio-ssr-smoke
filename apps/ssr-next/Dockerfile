@@ -1,9 +1,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY . .
-RUN npm run build
+RUN mkdir -p public && npm run build
 
 FROM node:22-alpine
 WORKDIR /app
