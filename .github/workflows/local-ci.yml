@@ -1,0 +1,38 @@
+name: Local fixture CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixtures:
+    # Public repo: never execute fork PR code on a personal self-hosted runner.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: zurio-ci
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify backend syntax
+        run: node --check apps/backend-node/server.js
+      - name: Build SSR fixture
+        working-directory: apps/ssr-next
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run build
+      - name: Build Vite fixture
+        working-directory: apps/static-vite
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run build
+      - name: Build Astro fixture
+        working-directory: apps/static-astro
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run build
