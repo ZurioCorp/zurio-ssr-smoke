@@ -2,6 +2,11 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 
 const port = Number(process.env.PORT || 3000);
+
+// Una línea JSON por evento, a stdout: es lo que Zurio recoge como logs de la app.
+function log(level, msg, fields = {}) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), level, service: "backend-node", msg, ...fields }));
+}
 const products = [
   { id: "prod_001", name: "Workspace Starter", price_cents: 1900, active: true },
   { id: "prod_002", name: "Workspace Pro", price_cents: 7900, active: true },
@@ -15,6 +20,7 @@ const orders = [
 
 function json(response, status, body, startedAt, requestId) {
   const duration = Number((performance.now() - startedAt).toFixed(2));
+  log(status >= 500 ? "error" : status >= 400 ? "warn" : "info", "request", { method: response.req?.method, path: response.req?.url, status, duration_ms: duration, request_id: requestId });
   response.statusCode = status;
   response.setHeader("content-type", "application/json; charset=utf-8");
   response.setHeader("cache-control", "no-store");
@@ -37,6 +43,13 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method !== "GET") {
     return json(response, 405, { error: "method_not_allowed" }, startedAt, requestId);
+  }
+  // Ayuda de prueba: emite una línea de cada nivel para comprobar que los logs llegan (GET /api/v1/log-demo).
+  if (url.pathname === "/api/v1/log-demo") {
+    log("info", "log-demo: info", { request_id: requestId });
+    log("warn", "log-demo: warn", { request_id: requestId });
+    log("error", "log-demo: error", { request_id: requestId, reason: "línea de error de prueba" });
+    return json(response, 200, { status: "logged", levels: ["info", "warn", "error"] }, startedAt, requestId);
   }
   if (url.pathname === "/health") {
     return json(response, 200, { status: "ok", fixture: "backend-node", version: "v1" }, startedAt, requestId);
@@ -62,4 +75,4 @@ const server = http.createServer(async (request, response) => {
   return json(response, 404, { error: "not_found", path: url.pathname }, startedAt, requestId);
 });
 
-server.listen(port, "0.0.0.0", () => console.log(`backend-node listening on ${port}`));
+server.listen(port, "0.0.0.0", () => log("info", "listening", { port, port_env: process.env.PORT ?? null }));

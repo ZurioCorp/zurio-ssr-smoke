@@ -1,3 +1,5 @@
+import { log } from "../lib/log";
+
 export const dynamic = "force-dynamic";
 
 type CatalogResponse = {
@@ -15,7 +17,9 @@ async function getCatalog(): Promise<CatalogResponse> {
 
 export default async function Home() {
   const renderedAt = new Date().toISOString();
+  log("info", "render: inicio", { rendered_at: renderedAt });
   const catalog = await getCatalog();
+  log("info", "render: listo", { api: catalog.service, backend_ms: catalog.backend_ms });
 
   return (
     <main>

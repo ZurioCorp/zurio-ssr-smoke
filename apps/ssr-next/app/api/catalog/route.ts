@@ -1,3 +1,5 @@
+import { log } from "../../../lib/log";
+
 const items = [
   { id: "mock-1", name: "Starter workspace", status: "ready" },
   { id: "mock-2", name: "Preview deployment", status: "running" },
@@ -12,6 +14,7 @@ export function GET() {
     items,
     backend_ms: Number((performance.now() - startedAt).toFixed(2)),
   };
+  log("info", "catalog", { backend_ms: body.backend_ms, items: items.length });
   return Response.json(body, {
     headers: {
       "cache-control": "no-store",
