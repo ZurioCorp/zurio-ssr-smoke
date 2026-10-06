@@ -1,1 +1,1 @@
-{"name":"backend-node","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test"}}
+{"name":"backend-node","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test","test:live:ba1":"node scripts/verify-ba1-live.mjs"}}
