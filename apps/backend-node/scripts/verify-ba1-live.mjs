@@ -35,8 +35,13 @@ if (warmup.status !== 200) {
   throw new Error(`Unauthenticated health check returned ${warmup.status}; expected 200.`);
 }
 
-const sample = [];
-for (let offset = 0; offset < sampleSize; offset += concurrency) {
+const firstFailure = await request({ includeToken: true, label: "sample-001" });
+if (firstFailure.status !== 503) {
+  throw new Error("The failure gate is not armed; publish a fresh test deployment before running this suite.");
+}
+
+const sample = [firstFailure];
+for (let offset = 1; offset < sampleSize; offset += concurrency) {
   const batchSize = Math.min(concurrency, sampleSize - offset);
   const batch = await Promise.all(Array.from({ length: batchSize }, (_, index) =>
     request({ includeToken: true, label: String(offset + index + 1).padStart(3, "0") })));
