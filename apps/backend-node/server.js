@@ -1,7 +1,15 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { createTestFailureGate } from "./testFailureGate.js";
 
 const port = Number(process.env.PORT || 3000);
+const testFailureToken = process.env.ZURIO_BA1_TEST_5XX_TOKEN || "";
+const shouldEmitTestFailure = createTestFailureGate({
+  environment: process.env.ZURIO_ENVIRONMENT,
+  enabled: process.env.ZURIO_ENABLE_BA1_TEST_5XX === "true",
+  token: testFailureToken,
+  maxFailures: 2,
+});
 
 // Una línea JSON por evento, a stdout: es lo que Zurio recoge como logs de la app.
 function log(level, msg, fields = {}) {
@@ -52,6 +60,9 @@ const server = http.createServer(async (request, response) => {
     return json(response, 200, { status: "logged", levels: ["info", "warn", "error"] }, startedAt, requestId);
   }
   if (url.pathname === "/health") {
+    if (shouldEmitTestFailure(request.headers["x-zurio-ba1-test-token"])) {
+      return json(response, 503, { error: "controlled_test_failure", fixture: "ba1-test" }, startedAt, requestId);
+    }
     return json(response, 200, { status: "ok", fixture: "backend-node", version: "v1" }, startedAt, requestId);
   }
   if (url.pathname === "/api/v1/products") {
