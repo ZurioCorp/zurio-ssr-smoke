@@ -8,10 +8,12 @@ if (!baseUrlValue || !token) {
 }
 
 const baseUrl = new URL(baseUrlValue);
-const isZurioHost = baseUrl.hostname === "zurio.io" || baseUrl.hostname.endsWith(".zurio.io");
-const isLocalhost = baseUrl.hostname === "localhost" && baseUrl.port === "3000";
-if ((!isZurioHost && !isLocalhost) || (isZurioHost && baseUrl.protocol !== "https:")) {
-  throw new Error("BA1_BASE_URL must use https://*.zurio.io or http://localhost:3000.");
+const expectedTestHost = "zurio-ssr-smoke-fa170d3f-test-b25584ec-api.zurio.io";
+const isExpectedTestHost = baseUrl.hostname === expectedTestHost && baseUrl.protocol === "https:";
+const isLocalhost = baseUrl.hostname === "localhost" && baseUrl.port === "3000" && baseUrl.protocol === "http:";
+if (baseUrl.username || baseUrl.password || baseUrl.pathname !== "/" || baseUrl.search || baseUrl.hash
+  || (!isExpectedTestHost && !isLocalhost)) {
+  throw new Error(`BA1_BASE_URL must be the exact test deployment https://${expectedTestHost} or http://localhost:3000, without credentials or a path.`);
 }
 
 const healthUrl = new URL("/health", baseUrl);
@@ -25,8 +27,10 @@ async function request({ includeToken, label }) {
       "x-request-id": `ba1-live-${label}-${randomUUID()}`,
       ...(includeToken ? { "x-zurio-ba1-test-token": token } : {}),
     },
+    redirect: "error",
     signal: AbortSignal.timeout(10_000),
   });
+  await response.arrayBuffer();
   return { status: response.status, latencyMs: performance.now() - started };
 }
 
@@ -43,13 +47,19 @@ if (firstFailure.status !== 503) {
 const sample = [firstFailure];
 for (let offset = 1; offset < sampleSize; offset += concurrency) {
   const batchSize = Math.min(concurrency, sampleSize - offset);
-  const batch = await Promise.all(Array.from({ length: batchSize }, (_, index) =>
+  const batch = await Promise.allSettled(Array.from({ length: batchSize }, (_, index) =>
     request({ includeToken: true, label: String(offset + index + 1).padStart(3, "0") })));
-  sample.push(...batch);
+  sample.push(...batch.map((result) => result.status === "fulfilled"
+    ? result.value
+    : { error: result.reason instanceof Error ? result.reason.message : String(result.reason) }));
 }
 
 const afterGate = await request({ includeToken: true, label: "after-gate" });
 const counts = sample.reduce((result, { status }) => {
+  if (status === undefined) {
+    result.errors = (result.errors ?? 0) + 1;
+    return result;
+  }
   result[status] = (result[status] ?? 0) + 1;
   return result;
 }, {});
@@ -66,9 +76,9 @@ const percentile = (p) => Number(sortedLatencies[Math.ceil(p * sortedLatencies.l
 console.log(JSON.stringify({
   result: "passed",
   sampleSize: sample.length,
+  totalRequests: sample.length + 2,
   statusCounts: counts,
   warmupStatus: warmup.status,
   afterGateStatus: afterGate.status,
   latencyMs: { p50: percentile(0.5), p95: percentile(0.95), p99: percentile(0.99) },
-  secretLogged: false,
 }));
