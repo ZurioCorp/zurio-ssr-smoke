@@ -3,11 +3,10 @@ import { randomUUID } from "node:crypto";
 import { createTestFailureGate } from "./testFailureGate.js";
 
 const port = Number(process.env.PORT || 3000);
-const testFailureToken = process.env.ZURIO_BA1_TEST_5XX_TOKEN || "";
 const shouldEmitTestFailure = createTestFailureGate({
-  environment: process.env.ZURIO_ENVIRONMENT,
-  enabled: process.env.ZURIO_ENABLE_BA1_TEST_5XX === "true",
-  token: testFailureToken,
+  resourceAttributes: process.env.OTEL_RESOURCE_ATTRIBUTES,
+  enabled: process.env.ENABLE_SMOKE_FAILURE_FIXTURE === "true",
+  token: process.env.BA1_TEST_GATE_VALUE || "",
   maxFailures: 2,
 });
 
@@ -86,4 +85,7 @@ const server = http.createServer(async (request, response) => {
   return json(response, 404, { error: "not_found", path: url.pathname }, startedAt, requestId);
 });
 
-server.listen(port, "0.0.0.0", () => log("info", "listening", { port, port_env: process.env.PORT ?? null }));
+server.listen(port, "0.0.0.0", () => {
+  const address = server.address();
+  log("info", "listening", { port: typeof address === "object" && address ? address.port : port, port_env: process.env.PORT ?? null });
+});
